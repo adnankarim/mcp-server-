@@ -13,9 +13,6 @@ from pathlib import Path
 # Add the current directory to the path
 sys.path.insert(0, str(Path(__file__).parent))
 
-# Set example API key (replace with your actual key)
-os.environ["GNEWS_API_KEY"] = "your_api_key_here"
-
 from main import search_news, get_top_headlines
 
 
@@ -28,7 +25,7 @@ async def example_search():
         result = await search_news(
             q="artificial intelligence",
             lang="en",
-            max=5,
+            max_articles=5,
             sortby="publishedAt"
         )
         
@@ -56,7 +53,7 @@ async def example_headlines():
         result = await get_top_headlines(
             category="technology",
             country="us",
-            max=3
+            max_articles=3
         )
         
         if result["success"]:
@@ -82,7 +79,7 @@ async def example_complex_search():
         result = await search_news(
             q='(Tesla OR "electric vehicle") AND NOT "stock price"',
             lang="en",
-            max=3,
+            max_articles=3,
             sortby="relevance"
         )
         

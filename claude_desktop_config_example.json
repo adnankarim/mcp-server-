@@ -1,11 +1,13 @@
 {
   "mcpServers": {
     "gnews": {
-      "command": "python",
-      "args": ["/absolute/path/to/gnews-server/main.py"],
-      "env": {
-        "GNEWS_API_KEY": "your_gnews_api_key_here"
-      }
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/absolute/path/to/gnews-server",
+        "run",
+        "gnews-server"
+      ]
     }
   }
 }

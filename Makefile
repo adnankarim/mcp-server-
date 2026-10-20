@@ -20,7 +20,7 @@ install-uv:
 
 test:
 	@echo "Running tests..."
-	python test_server.py
+	uv run pytest -q
 
 run:
 	@echo "Starting GNews MCP Server..."
