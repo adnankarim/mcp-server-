@@ -1,0 +1,16 @@
+# FastMCP for building MCP servers
+fastmcp>=2.0.0
+
+# ChromaDB for vector database functionality
+chromadb>=0.4.0
+
+# Sentence transformers for embeddings (ChromaDB dependency)
+sentence-transformers>=2.2.0
+
+# LlamaIndex and LlamaParse for document parsing
+llama-index>=0.14.0
+llama-index-core>=0.14.0
+llama-parse>=0.6.0
+
+# Additional dependencies for text processing
+numpy>=1.21.0

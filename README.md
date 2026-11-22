@@ -1,178 +1,331 @@
-# MCP Server with OAuth 2.1 Authentication
+# RAG MCP Server
 
-This is a secure Model Context Protocol (MCP) server that implements OAuth 2.1 authentication using Scalekit as the authorization server. The server provides web search capabilities through the Tavily API while ensuring proper authentication and authorization.
-
-## What is MCP?
-
-MCP (Model Context Protocol) is a protocol designed for communication between LLMs and tools or resources. This implementation adds enterprise-grade security through OAuth 2.1 authentication, making it suitable for production deployments where access control is critical.
-
-![MCP](./docs/mcp-client-server.png)
+A **Retrieval Augmented Generation (RAG)** MCP server built with [FastMCP](https://github.com/jlowin/fastmcp) <mcreference link="https://github.com/jlowin/fastmcp" index="1">1</mcreference> and [ChromaDB](https://docs.trychroma.com/) <mcreference link="https://docs.trychroma.com/docs/overview/getting-started" index="2">2</mcreference> that provides MCP (Model Context Protocol) tools for ingesting documents into a local vector database and retrieving relevant information based on queries.
 
 ## Features
 
-- **OAuth 2.1 Authentication**: Secure access using Scalekit authorization server
-- **MCP Compliance**: Implements the MCP authorization specification
-- **Web Search**: Provides web search functionality via Tavily API
-- **Dynamic Client Registration**: Supports automatic client registration
-- **Token Validation**: Validates access tokens with proper audience checking
-- **Security Best Practices**: Implements PKCE, proper error handling, and token audience validation 
+### 🔧 **Tools**
+- **`query_documents`**: Search for relevant documents using semantic similarity
+- **`list_ingested_files`**: View all files currently stored in the database
+- **`reingest_data_directory`**: Reingest all files from the data directory (useful to reindex contents when new files are added)
+- **`get_rag_status`**: Get comprehensive system information including server status, database configuration, data directory status, and environment variables
 
-## Prerequisites
+### 📊 **Resources**
+- None currently available
 
-1. **Scalekit Account**: Sign up at [Scalekit](https://app.scalekit.com/ws/signup)
-2. **Tavily API Key**: Get your API key from [Tavily](https://tavily.com)
-3. **Python 3.11+**: Required for running the server
+### 💬 **Prompts**
+- **`rag_analysis_prompt`**: Generate structured prompts for analyzing documents on specific topics
 
-## Setup
+## Quick Start
 
-### 1. Install Dependencies
-
-```bash
-pip install -e .
-```
-
-### 2. Configure Environment Variables
-
-Copy the example environment file and configure your settings:
+### 1. Installation
 
 ```bash
-cp .env.example .env
+# Install dependencies
+pip install -r requirements.txt
+
+# Or install manually
+pip install fastmcp chromadb sentence-transformers
 ```
 
-Edit `.env` with your actual values:
-
-```env
-# Your Scalekit environment URL
-SCALEKIT_ENVIRONMENT_URL=https://your-company.scalekit.com
-
-# Your MCP server's resource identifier
-RESOURCE_IDENTIFIER=https://your-mcp-server.com
-
-# Server port (optional)
-PORT=10000
-
-# Tavily API key
-TAVILY_API_KEY=your_tavily_api_key_here
-```
-
-### 3. Configure Scalekit
-
-In the Scalekit dashboard:
-
-1. Navigate to **MCP servers** and click **Add MCP server**
-2. Configure your server:
-   - **Server name**: "Web Search MCP Server"
-   - **Resource identifier**: Your server URL (e.g., `https://your-mcp-server.com`)
-   - **Allow dynamic client registration**: Enable this
-   - **Access token lifetime**: 300-3600 seconds
-   - **Scopes**: `web-search:read`, `web-search:write`
-
-## Running the Server
+### 2. Run the Server
 
 ```bash
-python src/server.py
+# Start the MCP server
+python rag_server.py
+
+# Or use FastMCP CLI for development with inspector
+fastmcp dev rag_server.py
 ```
 
-The server will start on `http://localhost:10000` (or your configured port).
+### 3. Test the Server
 
-## API Endpoints
+```bash
+# Run the test suite
+python test_rag_server.py
+```
 
-### OAuth Discovery Endpoints
+## Directory Configuration
 
-- `GET /.well-known/oauth-protected-resource` - Resource metadata for MCP client discovery
-- `GET /.well-known/oauth-authorization-server` - Authorization server metadata (proxied from Scalekit)
+The server supports flexible configuration for both data and database directories through environment variables:
 
-### OAuth Endpoints
+### Data Directory Configuration:
+**Priority Order:**
+1. `LLAMA_RAG_DATA_DIR` environment variable (highest priority)
+2. `./data` in current working directory (workspace-relative)
+3. **Error**: If neither is found, the server will log an error and skip auto-ingestion
 
-- `POST /oauth/register` - Dynamic client registration (proxied to Scalekit)
+**Important**: Unlike the database directory, the data directory requires explicit configuration. If no data directory is found, the server will:
+- Log a clear error message with setup instructions
+- Skip auto-ingestion (server will still start successfully)
+- Require manual configuration before documents can be ingested
 
-### MCP Endpoints
+### Database Directory Configuration:
+**Priority Order:**
+1. `LLAMA_RAG_DB_DIR` environment variable (highest priority)
+2. `~/.local/share/rag-server` (XDG Base Directory standard)
+3. `./chroma` relative to current working directory (fallback)
 
-- `POST /web-search/mcp` - Main MCP endpoint (requires authentication)
+### Usage Examples:
+```bash
+# Using environment variable (recommended)
+export LLAMA_RAG_DATA_DIR=/path/to/your/documents
+python rag_server.py
 
-## Authentication Flow
+# Using current directory data folder
+mkdir data
+cp your_documents/* data/
+python rag_server.py
 
-1. **Discovery**: MCP client discovers authorization server via `/.well-known/oauth-protected-resource`
-2. **Registration**: Client registers with authorization server (if using dynamic registration)
-3. **Authorization**: User authorizes the client through OAuth 2.1 flow
-4. **Token Usage**: Client includes access token in `Authorization: Bearer <token>` header
-5. **Validation**: Server validates token with Scalekit and checks audience
+# Error case - no configuration
+# Server starts but logs: "No data directory found. Please either..."
+python rag_server.py
 
-## Error Handling
+# Use custom database directory only
+LLAMA_RAG_DB_DIR=/path/to/your/database python rag_server.py
 
-The server returns proper HTTP status codes and WWW-Authenticate headers:
+# Use both custom directories
+LLAMA_RAG_DATA_DIR=~/Documents/rag-data LLAMA_RAG_DB_DIR=~/Documents/rag-db python rag_server.py
+```
 
-- `401 Unauthorized`: Missing or invalid token
-- `403 Forbidden`: Valid token but insufficient permissions
-- `503 Service Unavailable`: Unable to validate token with authorization server
+### Testing:
+```bash
+# Test with temporary directories
+LLAMA_RAG_DATA_DIR=/tmp/test_data LLAMA_RAG_DB_DIR=/tmp/test_db python rag_server.py
+```
 
-## Security Features
+For detailed configuration options, see [DATA_DIRECTORY_CONFIG.md](DATA_DIRECTORY_CONFIG.md).
 
-- **Token Audience Validation**: Ensures tokens are issued specifically for this server
-- **PKCE Support**: Protects against authorization code interception
-- **Proper Error Responses**: Returns WWW-Authenticate headers as required by MCP spec
-- **Scope-based Authorization**: Controls access to specific functionality
+## Usage Examples
+
+### Ingesting Documents
+
+```python
+# The server will chunk your document automatically
+result = ingest_file(
+    file_path="sample_document.txt",
+    chunk_size=1000,  # Characters per chunk
+    overlap=200       # Overlap between chunks
+)
+```
+
+### Querying Documents
+
+```python
+# Search for relevant information
+results = query_documents(
+    query="What is machine learning?",
+    n_results=5,
+    include_metadata=True
+)
+```
+
+### Checking System Status
+
+```python
+# Get current system information
+status = get_rag_status()
+# Returns: {"status": "active", "total_documents": 42, ...}
+```
+
+## Architecture
+
+### Components
+
+1. **FastMCP Server**: High-level MCP server framework <mcreference link="https://github.com/jlowin/fastmcp" index="1">1</mcreference>
+2. **ChromaDB**: Local vector database for document storage <mcreference link="https://docs.trychroma.com/docs/overview/getting-started" index="2">2</mcreference>
+3. **Sentence Transformers**: Embedding model for semantic search
+
+### Data Flow
+
+```
+Text File → Chunking → Embeddings → ChromaDB → Query → Relevant Chunks
+```
+
+### File Structure
+
+```
+mcp-rag/
+├── rag_server.py           # Main MCP server implementation
+├── requirements.txt        # Python dependencies
+├── test_rag_server.py     # Test suite
+├── sample_document.txt    # Example document for testing
+├── README.md              # This file
+└── chroma_db/             # ChromaDB persistent storage (created automatically)
+```
+
+## Configuration
+
+### Environment Variables
+
+The server uses sensible defaults, but you can customize:
+
+- **Database Location**: Modify `persist_directory` in `rag_server.py`
+- **Collection Name**: Change `rag_documents` to your preferred name
+- **Chunk Settings**: Adjust default `chunk_size` and `overlap` parameters
+
+### ChromaDB Settings
+
+```python
+# Persistent storage configuration
+chroma_client = chromadb.PersistentClient(
+    path="./chroma_db",
+    settings=Settings(
+        anonymized_telemetry=False,
+        allow_reset=True
+    )
+)
+```
+
+## Integration with MCP Clients
+
+### Claude Desktop
+
+Add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "rag-server": {
+      "command": "python",
+      "args": ["/path/to/your/rag_server.py"],
+      "cwd": "/path/to/your/mcp-rag"
+    }
+  }
+}
+```
+
+### Cursor IDE
+
+Add to your MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "rag-server": {
+      "command": "python",
+      "args": ["rag_server.py"],
+      "cwd": "/path/to/mcp-rag"
+    }
+  }
+}
+```
+
+## Development
+
+### Testing with MCP Inspector
+
+FastMCP includes a built-in web interface for testing:
+
+```bash
+# Install with CLI tools
+pip install "fastmcp[cli]"
+
+# Run with inspector
+fastmcp dev rag_server.py
+
+# Open browser to http://127.0.0.1:6274
+```
+
+### Adding New Tools
+
+```python
+@mcp.tool
+def your_new_tool(param: str) -> str:
+    """
+    Description of your tool.
+    
+    Args:
+        param: Description of parameter
+    
+    Returns:
+        Description of return value
+    """
+    # Your implementation here
+    return "result"
+```
+
+### Adding Resources
+
+```python
+@mcp.resource("your://resource-uri")
+def your_resource() -> dict:
+    """
+    Description of your resource.
+    """
+    return {"data": "value"}
+```
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Client Registration Fails**
-   - Check that `SCALEKIT_ENVIRONMENT_URL` is correct
-   - Ensure dynamic client registration is enabled in Scalekit dashboard
-   - Verify network connectivity to Scalekit
+1. **Import Errors**
+   ```bash
+   pip install --upgrade fastmcp chromadb
+   ```
 
-2. **Token Validation Fails**
-   - Check that `RESOURCE_IDENTIFIER` matches what's configured in Scalekit
-   - Ensure the token was issued for the correct audience
-   - Verify token hasn't expired
+2. **ChromaDB Permission Issues**
+   ```bash
+   # Ensure write permissions for chroma_db directory
+   chmod -R 755 ./chroma_db
+   ```
 
-3. **Web Search Not Working**
-   - Check that `TAVILY_API_KEY` is set correctly
-   - Verify Tavily API key is valid and has sufficient quota
+3. **Memory Issues with Large Files**
+   - Reduce `chunk_size` parameter
+   - Process files in smaller batches
+   - Monitor system memory usage
 
-### Debug Mode
+4. **Slow Query Performance**
+   - Reduce `n_results` parameter
+   - Consider using more specific queries
+   - Check ChromaDB index status
 
-For debugging, you can add logging to see detailed error messages:
+### Logging
+
+The server includes comprehensive logging:
 
 ```python
 import logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)  # Enable debug logging
 ```
 
-## Project Structure
+## Performance Considerations
 
-```
-src/
-├── server.py          # Main FastAPI server with OAuth middleware
-├── tavily_mcp.py      # MCP server implementation with Tavily integration
-├── utils.py           # Token validation utilities
-├── auth-mcp.md        # MCP authorization specification
-└── upscalekit-docs.md # Scalekit integration documentation
-```
+### Optimization Tips
 
-## Key Implementation Details
+1. **Chunk Size**: Balance between context and performance (500-2000 characters)
+2. **Overlap**: Prevent context loss at chunk boundaries (10-20% of chunk size)
+3. **Query Results**: Limit `n_results` to avoid overwhelming responses (3-10 results)
+4. **File Size**: Consider splitting very large files before ingestion
 
-This implementation addresses the main issues you were facing:
+### Scaling
 
-1. **Fixed OAuth Endpoints**: 
-   - Corrected the protected resource metadata endpoint to `/.well-known/oauth-protected-resource`
-   - Added proper dynamic client registration endpoint at `/oauth/register`
-   - Fixed authorization server metadata proxying
+For production use:
 
-2. **Proper Error Handling**:
-   - Returns WWW-Authenticate headers as required by MCP specification
-   - Provides detailed error messages for debugging
-   - Handles different error scenarios appropriately
+- Consider ChromaDB's client-server mode
+- Implement batch processing for large document sets
+- Add caching for frequently accessed documents
+- Monitor disk space for the vector database
 
-3. **Token Validation**:
-   - Validates tokens with Scalekit's introspection endpoint
-   - Checks audience claims to ensure tokens are for this specific server
-   - Handles token validation errors gracefully
+## Contributing
 
-4. **Security Compliance**:
-   - Implements OAuth 2.1 best practices
-   - Supports PKCE for authorization code protection
-   - Validates resource parameters as required by MCP spec
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Ensure all tests pass
+5. Submit a pull request
 
-The server is now fully compliant with the MCP authorization specification and should work properly with MCP clients that support OAuth 2.1 authentication.
+## License
+
+This project is open source. Feel free to use, modify, and distribute according to your needs.
+
+## References
+
+- [Model Context Protocol Documentation](https://modelcontextprotocol.io/) <mcreference link="https://modelcontextprotocol.io/llms-full.txt" index="0">0</mcreference>
+- [FastMCP Framework](https://github.com/jlowin/fastmcp) <mcreference link="https://github.com/jlowin/fastmcp" index="1">1</mcreference>
+- [ChromaDB Documentation](https://docs.trychroma.com/) <mcreference link="https://docs.trychroma.com/docs/overview/getting-started" index="2">2</mcreference>
+
+---
+
+**Built with ❤️ using FastMCP and ChromaDB**
